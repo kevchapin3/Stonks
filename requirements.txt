@@ -1,0 +1,4 @@
+numpy>=1.26
+pandas>=2.1
+yfinance>=0.2  # optional: live data download
+pytest>=8      # tests
