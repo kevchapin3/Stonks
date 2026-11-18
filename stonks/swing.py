@@ -22,6 +22,14 @@ Exits, whichever comes first:
 * Bearish reversal pattern after `min_hold` bars.
 * Time stop at `max_hold` bars (40 trading days is about 8 weeks).
 
+Earnings rule (when an earnings table is passed to `run`, see `earnings.py`):
+
+* Enter only within `post_window` bars after a report that beat the EPS
+  estimate (`require_beat`) and grew EPS year over year (`require_growth`).
+* Need at least `min_bars_to_earnings` bars before the next report.
+* Exit at the close `exit_buffer` bar(s) before the next report's reaction
+  bar, so a trade never holds through earnings.
+
 Stops fill at the stop price, or at the open when the stock gaps through it.
 """
 
@@ -33,6 +41,7 @@ import numpy as np
 import pandas as pd
 
 from . import candlesticks as cs
+from . import earnings as er
 from . import indicators as ind
 
 
@@ -53,6 +62,14 @@ class SwingParams:
     max_hold: int = 40          # ~8 weeks
     exit_on_bearish: bool = True
     cost_bps: float = 10.0      # per side; mid-cap spreads + slippage
+    # Earnings rule (applies when earnings data is supplied)
+    post_window: int = 20       # enter within ~4 weeks of a report
+    require_beat: bool = True
+    min_surprise_pct: float = 0.0
+    require_growth: bool = True
+    require_positive_reaction: bool = False
+    min_bars_to_earnings: int = 25
+    exit_buffer: int = 1
 
 
 @dataclass
@@ -71,7 +88,22 @@ class SwingResult:
         return "\n".join(lines)
 
 
-def setups(df: pd.DataFrame, p: SwingParams | None = None) -> pd.DataFrame:
+def earnings_ok(feat: pd.DataFrame, p: SwingParams) -> pd.Series:
+    """Bars where the earnings rule allows a new entry."""
+    ok = (feat["bars_since"] >= 1) & (feat["bars_since"] <= p.post_window)
+    ok &= feat["bars_to_next"] >= p.min_bars_to_earnings
+    if p.require_beat:
+        ok &= (feat["beat"] == 1) & (feat["surprise_pct"] >= p.min_surprise_pct)
+    if p.require_growth:
+        ok &= feat["eps_growth"] == 1
+    if p.require_positive_reaction:
+        ok &= feat["reaction_ret"] > 0
+    return ok.fillna(False).astype(bool)
+
+
+def setups(
+    df: pd.DataFrame, p: SwingParams | None = None, earnings: pd.DataFrame | None = None
+) -> pd.DataFrame:
     """Per-bar setup table: which pattern fired and whether filters passed."""
     p = p or SwingParams()
     c, v = df["close"], df["volume"]
@@ -83,7 +115,7 @@ def setups(df: pd.DataFrame, p: SwingParams | None = None) -> pd.DataFrame:
     trend_ok = (c > sma200) & (sma50 > sma200) if p.trend_filter else pd.Series(True, index=df.index)
     vol_ok = v >= p.vol_mult * v.rolling(20).mean().shift(1)
 
-    return pd.DataFrame(
+    out = pd.DataFrame(
         {
             "pattern": first_pat,
             "trend_ok": trend_ok.fillna(False),
@@ -92,14 +124,33 @@ def setups(df: pd.DataFrame, p: SwingParams | None = None) -> pd.DataFrame:
         },
         index=df.index,
     )
+    if earnings is not None:
+        out["earnings_ok"] = earnings_ok(er.align(df, earnings), p)
+        out["setup"] &= out["earnings_ok"]
+    return out
 
 
-def run(df: pd.DataFrame, p: SwingParams | None = None, ticker: str = "") -> SwingResult:
-    """Simulate the system bar by bar. Returns trades, daily position and equity."""
+def run(
+    df: pd.DataFrame,
+    p: SwingParams | None = None,
+    ticker: str = "",
+    earnings: pd.DataFrame | None = None,
+) -> SwingResult:
+    """Simulate the system bar by bar. Returns trades, daily position and equity.
+
+    Pass `earnings` (see `earnings.py`) to turn on the earnings rule.
+    """
     p = p or SwingParams()
+    if earnings is not None:
+        feat = er.align(df, earnings)
+        entry_ok = earnings_ok(feat, p).to_numpy()
+        to_next = feat["bars_to_next"].to_numpy(float)
+    else:
+        entry_ok = np.ones(len(df), bool)
+        to_next = np.full(len(df), np.nan)
     o, h, l, c = (df[k].to_numpy(float) for k in ("open", "high", "low", "close"))
     atr = ind.atr(df["high"], df["low"], df["close"], p.atr_period).to_numpy()
-    st = setups(df, p)
+    st = setups(df, p, earnings)
     setup = st["setup"].to_numpy()
     pattern = st["pattern"].to_numpy()
     bearish = (
@@ -121,6 +172,8 @@ def run(df: pd.DataFrame, p: SwingParams | None = None, ticker: str = "") -> Swi
             if l[i] <= trade["stop"]:
                 fill = min(o[i], trade["stop"])
                 trade.update(exit_i=i, exit_price=fill, reason="stop")
+            elif to_next[i] <= p.exit_buffer:
+                trade.update(exit_i=i, exit_price=c[i], reason="earnings")
             elif p.exit_on_bearish and bars_held >= p.min_hold and bearish[i]:
                 trade.update(exit_i=i, exit_price=c[i], reason="bearish_pattern")
             elif bars_held >= p.max_hold:
@@ -141,7 +194,7 @@ def run(df: pd.DataFrame, p: SwingParams | None = None, ticker: str = "") -> Swi
             pi, ph, pl, name = pending
             if i - pi > p.confirm_bars:
                 pending = None
-            elif i > pi and c[i] > ph and not np.isnan(atr[i]):
+            elif i > pi and c[i] > ph and not np.isnan(atr[i]) and entry_ok[i]:
                 entry = c[i]
                 stop = max(pl - p.stop_atr * atr[i], entry - p.max_risk_atr * atr[i])
                 trade = dict(

@@ -93,7 +93,7 @@ def test_crossover():
 def test_strategies_valid_positions(df, name):
     pos = signals.STRATEGIES[name](df)
     assert pos.index.equals(df.index)
-    assert set(pos.unique()) <= {-1.0, 0.0, 1.0}
+    assert set(pos.unique()) <= {0.0, 1.0}  # long-only
 
 
 def test_backtest_no_lookahead():
