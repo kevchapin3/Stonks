@@ -159,3 +159,15 @@ def test_fixed_percent_stop():
     stopped = t[t["reason"] == "stop"]
     # With no trailing stop, a stop exit fills at the stop or (on a gap) below it.
     assert (stopped["exit_price"] <= stopped["entry_price"] * 0.9 + 1e-9).all()
+
+
+def test_rsi_filter_only_admits_low_rsi_setups():
+    from stonks import indicators as ind
+    df = data.synthetic(2500, seed=7)
+    p = swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0, rsi_max=40)
+    st = swing.setups(df, p)
+    r = ind.rsi(df["close"])
+    assert st["setup"].any()
+    assert (r[st["setup"]] <= 40).all()
+    loose = swing.setups(df, swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0))
+    assert st["setup"].sum() < loose["setup"].sum()

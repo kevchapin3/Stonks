@@ -59,6 +59,8 @@ class SwingParams:
     stop_pct: float | None = 0.10   # fixed stop 10% below entry; None = ATR stop
     trail_atr: float | None = None  # e.g. 3.0 for a chandelier trailing stop
     market_ma: int = 200            # with a market index: buy only above this SMA
+    rsi_period: int = 14
+    rsi_max: float | None = None    # e.g. 40: pattern-day RSI must be at or below this
     min_hold: int = 30          # ~6 weeks
     max_hold: int = 40          # ~8 weeks
     exit_on_bearish: bool = True
@@ -124,6 +126,8 @@ def setups(
     sma50, sma200 = ind.sma(c, 50), ind.sma(c, 200)
     trend_ok = (c > sma200) & (sma50 > sma200) if p.trend_filter else pd.Series(True, index=df.index)
     vol_ok = v >= p.vol_mult * v.rolling(20).mean().shift(1)
+    if p.rsi_max is not None:
+        vol_ok = vol_ok & (ind.rsi(c, p.rsi_period) <= p.rsi_max)
 
     out = pd.DataFrame(
         {
