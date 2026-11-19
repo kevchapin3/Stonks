@@ -96,28 +96,45 @@ def align(prices: pd.DataFrame, earnings: pd.DataFrame) -> pd.DataFrame:
     )
     close = prices["close"].to_numpy(float)
 
-    out = pd.DataFrame(index=idx, columns=["bars_since", "bars_to_next", "surprise_pct", "beat",
-                                            "eps_growth", "reaction_ret"], dtype=float)
-    reacts = e["react"].to_numpy()
-    reported = e["eps_actual"].notna().to_numpy()
-    for i in range(n):
-        # last report already reflected in prices, with an actual EPS number
-        past = np.where((reacts <= i) & reported)[0]
-        future = np.where(reacts > i)[0]
-        if len(past):
-            k = past[-1]
-            r = reacts[k]
-            out.iat[i, 0] = i - r
-            out.iat[i, 2] = e["surprise_pct"].iat[k]
-            out.iat[i, 3] = float(e["eps_actual"].iat[k] > e["eps_estimate"].iat[k]) if pd.notna(
-                e["eps_estimate"].iat[k]) else np.nan
-            out.iat[i, 4] = e["eps_growth"].iat[k]
-            out.iat[i, 5] = close[r] / close[r - 1] - 1 if 0 < r < n else np.nan
-        if len(future) and reacts[future[0]] < n:
-            out.iat[i, 1] = reacts[future[0]] - i
-        elif len(past):
-            out.iat[i, 1] = max(QUARTER_BARS - (i - reacts[past[-1]]), 1)
-    return out
+    bars = np.arange(n)
+    reacts = e["react"].to_numpy()                      # non-decreasing (sorted by date)
+    rep = e[e["eps_actual"].notna()]                    # reports with an actual EPS number
+    rep_reacts = rep["react"].to_numpy()
+
+    # Last reported reaction bar at or before each bar.
+    k = np.searchsorted(rep_reacts, bars, side="right") - 1
+    has_past = k >= 0
+    kk = np.where(has_past, k, 0)
+    last_r = np.where(has_past, rep_reacts[kk] if len(rep_reacts) else 0, -1)
+
+    def pick(col):
+        vals = rep[col].to_numpy(float) if len(rep) else np.zeros(1)
+        return np.where(has_past, vals[kk], np.nan)
+
+    beat = np.where(rep["eps_estimate"].notna(), rep["eps_actual"] > rep["eps_estimate"], np.nan) \
+        if len(rep) else np.zeros(1)
+    prev_close = np.concatenate([[np.nan], close[:-1]])
+    react_ret = close / prev_close - 1
+    rr = np.where(has_past & (last_r > 0) & (last_r < n), react_ret[np.clip(last_r, 0, n - 1)], np.nan)
+
+    # Next reaction bar strictly after each bar (scheduled or reported).
+    j = np.searchsorted(reacts, bars, side="right")
+    nxt = np.where(j < len(reacts), reacts[np.minimum(j, len(reacts) - 1)] if len(reacts) else n, n)
+    to_next = np.where(nxt < n, nxt - bars, np.nan)
+    est = np.maximum(QUARTER_BARS - (bars - last_r), 1).astype(float)
+    to_next = np.where(np.isnan(to_next) & has_past, est, to_next)
+
+    return pd.DataFrame(
+        {
+            "bars_since": np.where(has_past, bars - last_r, np.nan),
+            "bars_to_next": to_next,
+            "surprise_pct": pick("surprise_pct"),
+            "beat": np.where(has_past, np.asarray(beat, float)[kk], np.nan),
+            "eps_growth": pick("eps_growth"),
+            "reaction_ret": rr,
+        },
+        index=idx,
+    )
 
 
 def synthetic(prices: pd.DataFrame, seed: int = 0, beat_prob: float = 0.6) -> pd.DataFrame:

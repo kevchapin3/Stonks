@@ -26,9 +26,9 @@ Earnings rule (when an earnings table is passed to `run`, see `earnings.py`):
 
 * Enter only within `post_window` bars after a report that beat the EPS
   estimate (`require_beat`) and grew EPS year over year (`require_growth`).
-* Need at least `min_bars_to_earnings` bars before the next report.
-* Exit at the close `exit_buffer` bar(s) before the next report's reaction
-  bar, so a trade never holds through earnings.
+* Optional (off by default): need `min_bars_to_earnings` bars before the next
+  report, and with `exit_before_earnings` sell at the close `exit_buffer`
+  bar(s) before it so a trade never holds through earnings.
 
 Stops fill at the stop price, or at the open when the stock gaps through it.
 """
@@ -68,7 +68,8 @@ class SwingParams:
     min_surprise_pct: float = 0.0
     require_growth: bool = True
     require_positive_reaction: bool = False
-    min_bars_to_earnings: int = 25
+    min_bars_to_earnings: int = 0     # 0 = no minimum
+    exit_before_earnings: bool = False
     exit_buffer: int = 1
 
 
@@ -91,7 +92,8 @@ class SwingResult:
 def earnings_ok(feat: pd.DataFrame, p: SwingParams) -> pd.Series:
     """Bars where the earnings rule allows a new entry."""
     ok = (feat["bars_since"] >= 1) & (feat["bars_since"] <= p.post_window)
-    ok &= feat["bars_to_next"] >= p.min_bars_to_earnings
+    if p.min_bars_to_earnings > 0:
+        ok &= feat["bars_to_next"] >= p.min_bars_to_earnings
     if p.require_beat:
         ok &= (feat["beat"] == 1) & (feat["surprise_pct"] >= p.min_surprise_pct)
     if p.require_growth:
@@ -172,7 +174,7 @@ def run(
             if l[i] <= trade["stop"]:
                 fill = min(o[i], trade["stop"])
                 trade.update(exit_i=i, exit_price=fill, reason="stop")
-            elif to_next[i] <= p.exit_buffer:
+            elif p.exit_before_earnings and to_next[i] <= p.exit_buffer:
                 trade.update(exit_i=i, exit_price=c[i], reason="earnings")
             elif p.exit_on_bearish and bars_held >= p.min_hold and bearish[i]:
                 trade.update(exit_i=i, exit_price=c[i], reason="bearish_pattern")

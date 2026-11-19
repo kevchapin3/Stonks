@@ -24,20 +24,19 @@ Nothing in this code shorts. Bearish patterns only close a stock you own.
 3. Pattern-bar volume ≥ 1.2× its 20-day average.
 4. Confirmation: a close above the pattern bar's high within 3 bars. Entry is at that close.
 5. **Earnings rule:** the latest quarterly report beat the EPS estimate and grew
-   EPS year over year. The entry comes within 20 trading days of that report,
-   with at least 25 trading days left before the next one.
+   EPS year over year. The entry comes within 20 trading days of that report.
 
 **Exit**, whichever comes first:
 - Initial stop: pattern low − 0.5 ATR, but never more than 3 ATR below entry.
 - Trailing chandelier stop: highest close − 3 ATR.
 - A bearish reversal pattern after 30 bars (about 6 weeks).
 - Time stop at 40 bars (about 8 weeks).
-- Earnings: sell at the close before the next report, so no trade holds through one.
+- Trades may hold through the next earnings report. To sell before it instead,
+  set `SwingParams(exit_before_earnings=True, min_bars_to_earnings=25)`.
 
 Why earnings: prices follow profits, and stocks that beat estimates tend to keep
-drifting up for weeks afterward (post-earnings drift). Reports are about 63
-trading days apart, so entering within 4 weeks after one and selling before the
-next leaves room for a 6-8 week hold.
+drifting up for weeks afterward (post-earnings drift). Buying within 4 weeks
+of a beat puts the entry inside that drift window.
 
 Costs default to 10 bps per side for mid-cap spreads and slippage. All of these
 settings live in `SwingParams`.

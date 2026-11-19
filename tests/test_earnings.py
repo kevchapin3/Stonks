@@ -46,7 +46,8 @@ def test_align_no_lookahead(prices):
 
 def test_trades_never_hold_through_earnings(prices):
     e = er.synthetic(prices, seed=3)
-    p = swing.SwingParams(trend_filter=False, vol_mult=0.0, require_growth=False)
+    p = swing.SwingParams(trend_filter=False, vol_mult=0.0, require_growth=False,
+                          exit_before_earnings=True, min_bars_to_earnings=25)
     res = swing.run(prices, p, earnings=e)
     t = res.trades
     assert len(t) > 0
@@ -73,3 +74,11 @@ def test_load_csv_roundtrip(tmp_path, prices):
     path = tmp_path / "X.csv"
     e.to_csv(path, index=False)
     pd.testing.assert_frame_equal(er.load_csv(str(path)), e)
+
+
+def test_holding_through_earnings_is_default(prices):
+    e = er.synthetic(prices, seed=3)
+    p = swing.SwingParams(trend_filter=False, vol_mult=0.0, require_growth=False)
+    assert not p.exit_before_earnings
+    t = swing.run(prices, p, earnings=e).trades
+    assert "earnings" not in set(t["reason"])
