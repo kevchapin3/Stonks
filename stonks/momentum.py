@@ -72,25 +72,25 @@ def signals(df: pd.DataFrame, earnings: pd.DataFrame, p: MomentumParams,
     return ok.fillna(False)
 
 
-def run(df: pd.DataFrame, earnings: pd.DataFrame, p: MomentumParams | None = None,
-        market: pd.DataFrame | None = None, ticker: str = "") -> pd.DataFrame:
-    """Simulate; returns one row per trade (reason 'open' if still held)."""
-    p = p or MomentumParams()
-    sig = signals(df, earnings, p, market).to_numpy()
+def simulate(df: pd.DataFrame, sig, stop_pct: float = 0.10, hold: int = 40,
+             cost_bps: float = 10.0, ticker: str = "") -> pd.DataFrame:
+    """Enter at the close on each signal day when flat; exit on the stop or after
+    `hold` bars. Returns one row per trade (reason 'open' if still held)."""
+    sig = np.asarray(sig, bool)
     o, l, c = (df[k].to_numpy(float) for k in ("open", "low", "close"))
-    idx, cost = df.index, p.cost_bps / 10_000
+    idx, cost = df.index, cost_bps / 10_000
     trades, i, n = [], 0, len(df)
     while i < n:
         if not sig[i]:
             i += 1
             continue
-        entry, stop = c[i], c[i] * (1 - p.stop_pct)
+        entry, stop = c[i], c[i] * (1 - stop_pct)
         exit_i, price, reason = None, None, None
-        for j in range(i + 1, min(i + p.hold, n - 1) + 1):
+        for j in range(i + 1, min(i + hold, n - 1) + 1):
             if l[j] <= stop:
                 exit_i, price, reason = j, min(o[j], stop), "stop"
                 break
-            if j - i >= p.hold:
+            if j - i >= hold:
                 exit_i, price, reason = j, c[j], "time"
                 break
         if exit_i is None:
@@ -102,3 +102,11 @@ def run(df: pd.DataFrame, earnings: pd.DataFrame, p: MomentumParams | None = Non
         i = exit_i + 1
     t = pd.DataFrame(trades)
     return t.rename(columns={"ret": "return"}) if not t.empty else t
+
+
+def run(df: pd.DataFrame, earnings: pd.DataFrame, p: MomentumParams | None = None,
+        market: pd.DataFrame | None = None, ticker: str = "") -> pd.DataFrame:
+    """Simulate; returns one row per trade (reason 'open' if still held)."""
+    p = p or MomentumParams()
+    sig = signals(df, earnings, p, market).to_numpy()
+    return simulate(df, sig, p.stop_pct, p.hold, p.cost_bps, ticker)
