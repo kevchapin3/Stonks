@@ -17,7 +17,9 @@ Exits, whichever comes first:
 
 * Initial stop: pattern low minus `stop_atr` x ATR (capped at `max_risk_atr`
   ATRs below entry).
-* Chandelier trailing stop: highest close since entry minus `trail_atr` x ATR.
+  Or, with `stop_pct` set, a fixed stop that far below entry (0.10 = 10%).
+* Chandelier trailing stop: highest close since entry minus `trail_atr` x ATR
+  (set `trail_atr=None` to turn it off).
   It only tightens.
 * Bearish reversal pattern after `min_hold` bars.
 * Time stop at `max_hold` bars (40 trading days is about 8 weeks).
@@ -57,7 +59,8 @@ class SwingParams:
     atr_period: int = 14
     stop_atr: float = 0.5
     max_risk_atr: float = 3.0
-    trail_atr: float = 3.0
+    stop_pct: float | None = None   # e.g. 0.10 = fixed stop 10% below entry
+    trail_atr: float | None = 3.0
     min_hold: int = 30          # ~6 weeks
     max_hold: int = 40          # ~8 weeks
     exit_on_bearish: bool = True
@@ -186,7 +189,7 @@ def run(
             else:
                 position[i] = 1.0
                 trade["high_close"] = max(trade["high_close"], c[i])
-                if not np.isnan(atr[i]):
+                if p.trail_atr is not None and not np.isnan(atr[i]):
                     trail = trade["high_close"] - p.trail_atr * atr[i]
                     trade["stop"] = max(trade["stop"], trail)
                 continue
@@ -198,7 +201,10 @@ def run(
                 pending = None
             elif i > pi and c[i] > ph and not np.isnan(atr[i]) and entry_ok[i]:
                 entry = c[i]
-                stop = max(pl - p.stop_atr * atr[i], entry - p.max_risk_atr * atr[i])
+                if p.stop_pct is not None:
+                    stop = entry * (1 - p.stop_pct)
+                else:
+                    stop = max(pl - p.stop_atr * atr[i], entry - p.max_risk_atr * atr[i])
                 trade = dict(
                     ticker=ticker, pattern=name, pattern_date=idx[pi], entry_i=i,
                     entry_price=entry, initial_stop=stop, stop=stop, high_close=entry,

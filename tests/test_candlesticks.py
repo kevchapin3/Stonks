@@ -145,3 +145,14 @@ def test_midcap_liquidity_filter():
     assert not scan.liquidity_ok(thin, u)[0]
     penny = df.assign(close=df["close"] / 10)
     assert not scan.liquidity_ok(penny, u)[0]
+
+
+def test_fixed_percent_stop():
+    df = data.synthetic(2500, seed=7)
+    p = swing.SwingParams(trend_filter=False, vol_mult=0.0, stop_pct=0.10, trail_atr=None)
+    t = swing.run(df, p).trades
+    assert len(t) > 5
+    assert np.allclose(t["initial_stop"], t["entry_price"] * 0.9)
+    stopped = t[t["reason"] == "stop"]
+    # With no trailing stop, a stop exit fills at the stop or (on a gap) below it.
+    assert (stopped["exit_price"] <= stopped["entry_price"] * 0.9 + 1e-9).all()

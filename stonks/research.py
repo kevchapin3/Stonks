@@ -101,12 +101,14 @@ def main(argv=None):
     ap.add_argument("--csv-dir", required=True)
     ap.add_argument("--earnings-dir", required=True)
     ap.add_argument("--out", help="Write all trades to this CSV")
+    ap.add_argument("--stop-pct", type=float, help="Fixed stop this far below entry, e.g. 0.10")
+    ap.add_argument("--no-trail", action="store_true", help="Turn off the trailing stop")
     args = ap.parse_args(argv)
 
     prices, earns = load(args.csv_dir, args.earnings_dir)
     print(f"{len(prices)} stocks with prices, {len(earns)} with usable earnings history\n")
 
-    base = swing.SwingParams()
+    base = swing.SwingParams(stop_pct=args.stop_pct, trail_atr=None if args.no_trail else 3.0)
     variants = {
         "candles_only": (base, False),
         "candles+earnings": (base, True),
