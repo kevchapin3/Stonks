@@ -31,3 +31,23 @@ def test_infer_membership_recovers_synthetic_structure():
     mem, u, err = rdvy.infer_membership(w, prices, asof, refs)
     assert err < 0.01
     assert (mem == true).values.mean() > 0.95
+
+
+def test_forecast_ranks_persistent_names_first():
+    rng = np.random.default_rng(2)
+    asof = pd.Timestamp("2026-11-18")
+    refs = rdvy.last_ref_dates(asof)
+    idx = pd.bdate_range("2025-10-01", asof)
+    names = [f"T{i}" for i in range(80)]
+    prices = pd.DataFrame(100 * np.exp(np.cumsum(rng.normal(0, 0.01, (len(idx), 80)), 0)), index=idx, columns=names)
+    mem = pd.DataFrame(0, index=names, columns=["A", "B", "C", "D"])
+    mem.iloc[:20] = 1                                   # in all four
+    for k, s in enumerate("ABCD"):                      # 30 more, one sub each
+        mem.iloc[20 + k * 15: 35 + k * 15][s] = 1 if 35 + k * 15 <= 80 else 0
+    mem = mem[mem.sum(1) > 0]
+    w = sum(mem[s] * 0.5 * prices.loc[asof, mem.index] / prices[:refs[s]].iloc[-1][mem.index] for s in refs)
+    h = pd.DataFrame({"ticker": w.index, "weight": w.values})
+    reb, out = rdvy.forecast(h, asof, prices, top=10)
+    assert reb.sub == "D"
+    assert set(out.index) <= set(mem.index[mem[["A", "B", "C"]].sum(1) == 3])
+    assert (out["if_repicked"] > out["if_not_repicked"]).all()

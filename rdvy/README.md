@@ -34,3 +34,23 @@ member of an over-limit industry is swapped for the next-ranked name from anothe
 ## Files
 - `holdings_2026-11-18.csv`: First Trust full holdings snapshot
 - `membership_2026-11-18.csv`: inferred sub-portfolio membership (fit error < 0.005 pp per holding)
+
+## Forecasting the top holdings before each rebalance
+
+    python -m stonks.rdvy
+
+Downloads RDVY's current holdings from First Trust, infers which sub-portfolios each stock is in
+(from weights and price moves since each sub-portfolio's last rebuild), and projects weights right
+after the next rebalance. Stocks in all three sub-portfolios that are not being rebuilt are assumed
+to be re-selected: in 2026 Nasdaq re-picked 91-92% of names picked in the prior rebuilds. The table
+shows each candidate's weight both if re-picked and if not.
+
+Run it after the price reference date (last trading day of Feb / May / Aug / Nov) for the final
+projection; Nasdaq announces the actual changes six trading days before the effective date.
+
+### Screen replication (stonks/nqdvris.py)
+Applies the published screens to Yahoo Finance fundamentals. Checked against the last four rebuilds
+it reproduced 121-124 of 196 actual picks (about 63%) and 65-68% of names held in three or more
+sub-portfolios. Misses cluster in mid-size financials and names where Yahoo's EPS (adjusted) or
+dividend history differs from Nasdaq's data. Use it as a cross-check on the persistence forecast,
+not as a replacement.

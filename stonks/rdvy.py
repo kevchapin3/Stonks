@@ -99,7 +99,7 @@ def infer_membership(weights: pd.Series, prices: pd.DataFrame, asof: pd.Timestam
         if np.allclose(u_new, u, rtol=1e-7):
             break
         u = u_new
-    fit = (M * u * Rv).sum(1)
+    fit = (M * u * Rv).sum(axis=1)
     mem = pd.DataFrame(M.astype(int), index=weights.index, columns=subs)
     return mem, pd.Series(u * 100 * weights.sum() / 100, index=subs), float(np.abs(fit - w).max() * 100)
 
@@ -122,14 +122,14 @@ def project(mem: pd.DataFrame, slices: pd.Series, prices: pd.DataFrame, asof: pd
         contrib = contrib * (sub_tot.sum() / 4) / sub_tot
         sub_tot = contrib.sum()
     others = [s for s in contrib.columns if s != reb.sub]
-    carried = contrib[others].sum(1)
+    carried = contrib[others].sum(axis=1)
     capped = set(carried[carried >= spwc].index)
     sel = [t for t in selected if t not in capped]
     new_slice = sub_tot[reb.sub] / max(len(sel), 1)
     names = sorted(set(contrib.index) | set(sel))
     out = pd.DataFrame(index=names)
     out["carried"] = carried.reindex(names).fillna(0.0)
-    out["n_other_subs"] = mem[others].sum(1).reindex(names).fillna(0).astype(int)
+    out["n_other_subs"] = mem[others].sum(axis=1).reindex(names).fillna(0).astype(int)
     out["selected"] = out.index.isin(sel)
     out["weight"] = out["carried"] + np.where(out["selected"], new_slice, 0.0)
     out = out[out.weight > 0]
@@ -167,3 +167,77 @@ def validate(fund, prices, earnings, mem, params, overrides=None, asof=None) -> 
                          overlap=len(picked & actual),
                          missed=", ".join(sorted(actual - picked)), extra=", ".join(sorted(picked - actual))))
     return pd.DataFrame(rows).sort_values("rebuild")
+
+
+# --------------------------------------------------------------------------- #
+# Command line: forecast the top holdings for the next rebalance
+# --------------------------------------------------------------------------- #
+
+HOLDINGS_URL = "https://www.ftportfolios.com/retail/etf/etfholdings.aspx?Ticker=RDVY"
+
+
+def fetch_holdings(url: str = HOLDINGS_URL) -> tuple[pd.DataFrame, pd.Timestamp]:
+    """Download RDVY's full holdings table from First Trust (ticker, name, sector, weight %)."""
+    import html
+    import re
+    import urllib.request
+
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    s = urllib.request.urlopen(req, timeout=60).read().decode("utf-8", "ignore")
+    t = html.unescape(re.sub(r"<[^>]+>", "|", re.sub(r"(?s)<script.*?</script>|<style.*?</style>", "", s)))
+    t = re.sub(r"\|\s*\|+", "|", re.sub(r"[ \t\r\n]+", " ", t))
+    rows = re.findall(r"\|([^|]+)\|([A-Z.\-]{1,6})\|([0-9A-Z]{9})\|([^|]+)\|([\d,]+)\|\$([\d,\.]+)\|([\d\.]+)%", t)
+    df = pd.DataFrame(rows, columns=["name", "ticker", "cusip", "sector", "shares", "market_value", "weight"])
+    df["weight"] = df["weight"].astype(float)
+    m = re.search(r"as of (\d{1,2}/\d{1,2}/\d{4})", t)
+    asof = pd.Timestamp(m.group(1)) if m else pd.Timestamp.today().normalize()
+    return df, asof
+
+
+def forecast(holdings: pd.DataFrame, asof: pd.Timestamp, prices: pd.DataFrame, top: int = 10) -> tuple[Rebalance, pd.DataFrame]:
+    """Top holdings after the next rebalance, assuming names held in all three non-rebuilding
+    sub-portfolios are re-selected (Nasdaq re-picked ~91% of such names in 2026)."""
+    w = holdings.set_index("ticker")["weight"]
+    mem, slices, err = infer_membership(w, prices, asof)
+    reb = next_rebalance(asof)
+    others = [s for s in mem.columns if s != reb.sub]
+    persistent = set(mem.index[mem[others].sum(axis=1) == len(others)])
+    filler = {f"_new{i}" for i in range(max(0, 50 - len(persistent)))}
+    pr = project(mem, slices, prices, asof, reb, persistent | filler)
+    pr = pr.drop(index=[t for t in pr.index if t.startswith("_new")])
+    out = pr.head(top)[["carried", "weight"]].rename(columns={"carried": "if_not_repicked", "weight": "if_repicked"})
+    out.attrs.update(fit_error=err, members=mem)
+    return reb, out
+
+
+def main(argv=None):
+    import argparse
+
+    import yfinance as yf
+
+    ap = argparse.ArgumentParser(description="Forecast RDVY's top holdings for the next rebalance")
+    ap.add_argument("--holdings", help="Holdings CSV (ticker, weight); default: download from First Trust")
+    ap.add_argument("--asof", help="Holdings date (YYYY-MM-DD) when using --holdings")
+    ap.add_argument("--top", type=int, default=10)
+    a = ap.parse_args(argv)
+
+    if a.holdings:
+        h, asof = pd.read_csv(a.holdings), pd.Timestamp(a.asof or pd.Timestamp.today().normalize())
+    else:
+        h, asof = fetch_holdings()
+    start = (asof - pd.DateOffset(months=14)).strftime("%Y-%m-%d")
+    raw = yf.download([t.replace(".", "-") for t in h.ticker], start=start, auto_adjust=False,
+                      progress=False, group_by="ticker", threads=True)
+    prices = pd.DataFrame({t: raw[t.replace(".", "-")]["Close"] for t in h.ticker
+                           if t.replace(".", "-") in raw.columns.get_level_values(0)})
+    reb, out = forecast(h, asof, prices, a.top)
+    print(f"Holdings as of {asof.date()} ({len(h)} names). Sub-portfolio fit error {out.attrs['fit_error']:.3f} pp.")
+    print(f"Next rebalance: {reb}. Fundamentals as of {reb.fundamentals_ref.date()}, weights set from "
+          f"{reb.price_ref.date()} prices, announced after the close {reb.announcement.date()}, "
+          f"effective at the open {reb.effective.date()}.")
+    print("Projected weights (%) right after the rebalance:")
+    print(out.round(2).to_string())
+
+
+if __name__ == "__main__":
+    main()
