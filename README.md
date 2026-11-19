@@ -20,15 +20,18 @@ Nothing in this code shorts. Bearish patterns only close a stock you own.
 
 **Entry** (long only):
 1. Uptrend: close > 200-day SMA and 50-day SMA > 200-day SMA. Bullish candles are treated as pullback entries in an uptrend.
-2. A bullish reversal pattern after a short-term pullback.
-3. Pattern-bar volume ≥ 1.2× its 20-day average.
-4. Confirmation: a close above the pattern bar's high within 3 bars. Entry is at that close.
-5. **Earnings rule:** the latest quarterly report beat the EPS estimate and grew
+2. A **hammer** or **inverted hammer** after a short-term pullback (the other
+   patterns are still available through `SwingParams(patterns=...)`).
+3. **Market filter:** the S&P 400 mid-cap index (`^MID`) closes above its
+   200-day average.
+4. Pattern-bar volume ≥ 1.2× its 20-day average.
+5. Confirmation: a close above the pattern bar's high within 3 bars. Entry is at that close.
+6. **Earnings rule:** the latest quarterly report beat the EPS estimate and grew
    EPS year over year. The entry comes within 20 trading days of that report.
 
 **Exit**, whichever comes first:
-- Initial stop: pattern low − 0.5 ATR, but never more than 3 ATR below entry.
-- Trailing chandelier stop: highest close − 3 ATR.
+- Stop: 10% below the entry price (`stop_pct`). An ATR-based stop and a
+  trailing stop are available but off by default.
 - A bearish reversal pattern after 30 bars (about 6 weeks).
 - Time stop at 40 bars (about 8 weeks).
 - Trades may hold through the next earnings report. To sell before it instead,
@@ -51,6 +54,9 @@ pip install -r requirements.txt
 
 # Scan the 400-stock mid-cap sample and backtest the system (prices + earnings from Yahoo)
 python -m stonks.scan --tickers-file universe/midcaps.txt --start 2012-01-01 --backtest
+
+# Compare variants against a buy-any-day baseline on cached CSVs
+python -m stonks.research --csv-dir data/prices --earnings-dir data/earnings --market data/market_MID.csv
 
 # Or use your own CSVs, one per ticker:
 #   prices:   Date,Open,High,Low,Close[,Adj Close],Volume

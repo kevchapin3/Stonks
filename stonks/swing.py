@@ -49,18 +49,16 @@ from . import indicators as ind
 
 @dataclass
 class SwingParams:
-    patterns: tuple[str, ...] = (
-        "hammer", "bullish_engulfing", "piercing_line", "morning_star",
-        "bullish_harami", "tweezer_bottom", "inverted_hammer", "dragonfly_doji",
-    )
+    patterns: tuple[str, ...] = ("hammer", "inverted_hammer")
     trend_filter: bool = True
     vol_mult: float = 1.2
     confirm_bars: int = 3
     atr_period: int = 14
     stop_atr: float = 0.5
     max_risk_atr: float = 3.0
-    stop_pct: float | None = None   # e.g. 0.10 = fixed stop 10% below entry
-    trail_atr: float | None = 3.0
+    stop_pct: float | None = 0.10   # fixed stop 10% below entry; None = ATR stop
+    trail_atr: float | None = None  # e.g. 3.0 for a chandelier trailing stop
+    market_ma: int = 200            # with a market index: buy only above this SMA
     min_hold: int = 30          # ~6 weeks
     max_hold: int = 40          # ~8 weeks
     exit_on_bearish: bool = True
@@ -90,6 +88,13 @@ class SwingResult:
                 v = f"{v:.2%}" if any(s in k for s in ("return", "rate", "drawdown", "Exposure")) else f"{v:.2f}"
             lines.append(f"{k:<22}{v}")
         return "\n".join(lines)
+
+
+def market_ok(market: pd.DataFrame, index: pd.Index, ma: int = 200) -> np.ndarray:
+    """True on dates when the market index closes above its `ma`-day SMA."""
+    mc = market["close"]
+    above = (mc > ind.sma(mc, ma)).astype(float)
+    return above.reindex(index, method="ffill").fillna(0).astype(bool).to_numpy()
 
 
 def earnings_ok(feat: pd.DataFrame, p: SwingParams) -> pd.Series:
@@ -140,10 +145,13 @@ def run(
     p: SwingParams | None = None,
     ticker: str = "",
     earnings: pd.DataFrame | None = None,
+    market: pd.DataFrame | None = None,
 ) -> SwingResult:
     """Simulate the system bar by bar. Returns trades, daily position and equity.
 
-    Pass `earnings` (see `earnings.py`) to turn on the earnings rule.
+    Pass `earnings` (see `earnings.py`) to turn on the earnings rule, and
+    `market` (an index's OHLC, e.g. the S&P 400) to buy only while that index
+    is above its `market_ma`-day average.
     """
     p = p or SwingParams()
     if earnings is not None:
@@ -153,6 +161,8 @@ def run(
     else:
         entry_ok = np.ones(len(df), bool)
         to_next = np.full(len(df), np.nan)
+    if market is not None:
+        entry_ok = entry_ok & market_ok(market, df.index, p.market_ma)
     o, h, l, c = (df[k].to_numpy(float) for k in ("open", "high", "low", "close"))
     atr = ind.atr(df["high"], df["low"], df["close"], p.atr_period).to_numpy()
     st = setups(df, p, earnings)

@@ -4,6 +4,9 @@ import pytest
 
 from stonks import candlesticks as cs, data, swing
 
+# Mechanics tests use every pattern: synthetic candles rarely form hammers.
+ALL_PATTERNS = tuple(cs.BULLISH)
+
 
 def frame(rows):
     """rows: list of (open, high, low, close); prefixed by a 12-bar decline or rally."""
@@ -114,7 +117,7 @@ def test_weekly_resample():
 
 def test_swing_trades_respect_rules():
     df = data.synthetic(2500, seed=7)
-    p = swing.SwingParams(trend_filter=False, vol_mult=0.0)
+    p = swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0)
     res = swing.run(df, p)
     t = res.trades
     assert len(t) > 5
@@ -131,7 +134,7 @@ def test_swing_trades_respect_rules():
 
 def test_swing_equity_matches_trades():
     df = data.synthetic(2500, seed=11)
-    res = swing.run(df, swing.SwingParams(trend_filter=False, vol_mult=0.0))
+    res = swing.run(df, swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0))
     compounded = (1 + res.trades["return"]).prod() - 1
     assert res.stats["Total return"] == pytest.approx(compounded, rel=1e-9)
 
@@ -149,7 +152,7 @@ def test_midcap_liquidity_filter():
 
 def test_fixed_percent_stop():
     df = data.synthetic(2500, seed=7)
-    p = swing.SwingParams(trend_filter=False, vol_mult=0.0, stop_pct=0.10, trail_atr=None)
+    p = swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0, stop_pct=0.10, trail_atr=None)
     t = swing.run(df, p).trades
     assert len(t) > 5
     assert np.allclose(t["initial_stop"], t["entry_price"] * 0.9)

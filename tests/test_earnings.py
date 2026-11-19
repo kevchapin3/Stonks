@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from stonks import data, earnings as er, swing
+from stonks import candlesticks as cs, data, earnings as er, swing
+
+# Mechanics tests use every pattern: synthetic candles rarely form hammers.
+ALL_PATTERNS = tuple(cs.BULLISH)
 
 
 @pytest.fixture
@@ -46,7 +49,7 @@ def test_align_no_lookahead(prices):
 
 def test_trades_never_hold_through_earnings(prices):
     e = er.synthetic(prices, seed=3)
-    p = swing.SwingParams(trend_filter=False, vol_mult=0.0, require_growth=False,
+    p = swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0, require_growth=False,
                           exit_before_earnings=True, min_bars_to_earnings=25)
     res = swing.run(prices, p, earnings=e)
     t = res.trades
@@ -63,7 +66,7 @@ def test_trades_never_hold_through_earnings(prices):
 
 
 def test_earnings_rule_filters_trades(prices):
-    p = swing.SwingParams(trend_filter=False, vol_mult=0.0)
+    p = swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0)
     without = swing.run(prices, p)
     with_rule = swing.run(prices, p, earnings=er.synthetic(prices, seed=4))
     assert len(with_rule.trades) < len(without.trades)
@@ -78,7 +81,23 @@ def test_load_csv_roundtrip(tmp_path, prices):
 
 def test_holding_through_earnings_is_default(prices):
     e = er.synthetic(prices, seed=3)
-    p = swing.SwingParams(trend_filter=False, vol_mult=0.0, require_growth=False)
+    p = swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0, require_growth=False)
     assert not p.exit_before_earnings
     t = swing.run(prices, p, earnings=e).trades
     assert "earnings" not in set(t["reason"])
+
+
+def test_market_filter_blocks_entries_below_200d(prices):
+    from stonks import indicators as ind
+    e = er.synthetic(prices, seed=3)
+    p = swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0, require_growth=False)
+    # Market index: rises for 1500 bars, then falls hard (below its 200-day SMA).
+    idx = prices.index
+    level = np.concatenate([np.linspace(100, 300, 1500), np.linspace(300, 50, len(idx) - 1500)])
+    market = pd.DataFrame({"open": level, "high": level, "low": level, "close": level,
+                           "volume": 1.0}, index=idx)
+    t = swing.run(prices, p, earnings=e, market=market).trades
+    t_all = swing.run(prices, p, earnings=e).trades
+    above = market["close"] > ind.sma(market["close"], 200)
+    assert len(t) < len(t_all)
+    assert above.loc[t["entry_date"]].all()

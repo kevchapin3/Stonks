@@ -1,11 +1,13 @@
 """Compare strategy variants on a universe of CSVs, against a buy-anytime baseline.
 
-    python -m stonks.research --csv-dir data/prices --earnings-dir data/earnings
+    python -m stonks.research --csv-dir data/prices --earnings-dir data/earnings \
+        --market data/market_MID.csv
 
-Variants:
-  candles_only        candlestick system, no earnings rule
-  candles+earnings    entry within 20 days of an EPS beat with YoY growth (default)
-  candles+earn+exit   same, but sell before the next report
+Variants (all with the earnings rule and the default 10% stop):
+  all_patterns        all 8 bullish reversal patterns
+  hammers             hammer + inverted hammer only
+  hammers+market      same, buying only while the market index is above its
+                      200-day average (needs --market; the default system)
 Baseline:
   any_day             buy every stock on every day, hold the same number of
                       days as the variant's average trade (what you'd get
@@ -82,12 +84,14 @@ def baseline(prices: dict, horizon: int, uptrend: bool, cost_bps: float) -> dict
     return out
 
 
-def run_variant(prices, earns, p: swing.SwingParams, use_earnings: bool) -> pd.DataFrame:
+def run_variant(prices, earns, p: swing.SwingParams, use_earnings: bool,
+                market: pd.DataFrame | None = None) -> pd.DataFrame:
     trades = []
     for t, df in prices.items():
         if use_earnings and t not in earns:
             continue
-        res = swing.run(df, p, ticker=t, earnings=earns.get(t) if use_earnings else None)
+        res = swing.run(df, p, ticker=t, earnings=earns.get(t) if use_earnings else None,
+                        market=market)
         if not res.trades.empty:
             trades.append(res.trades)
     if not trades:
@@ -101,22 +105,26 @@ def main(argv=None):
     ap.add_argument("--csv-dir", required=True)
     ap.add_argument("--earnings-dir", required=True)
     ap.add_argument("--out", help="Write all trades to this CSV")
-    ap.add_argument("--stop-pct", type=float, help="Fixed stop this far below entry, e.g. 0.10")
-    ap.add_argument("--no-trail", action="store_true", help="Turn off the trailing stop")
+    ap.add_argument("--market", help="Market index CSV (e.g. S&P 400) for the 200-day filter")
     args = ap.parse_args(argv)
 
     prices, earns = load(args.csv_dir, args.earnings_dir)
     print(f"{len(prices)} stocks with prices, {len(earns)} with usable earnings history\n")
 
-    base = swing.SwingParams(stop_pct=args.stop_pct, trail_atr=None if args.no_trail else 3.0)
+    base = swing.SwingParams()
+    market = data.load_csv(args.market) if args.market else None
+    all_pats = tuple(k for k in ("hammer", "bullish_engulfing", "piercing_line", "morning_star",
+                                 "bullish_harami", "tweezer_bottom", "inverted_hammer", "dragonfly_doji"))
     variants = {
-        "candles_only": (base, False),
-        "candles+earnings": (base, True),
-        "candles+earn+exit": (replace(base, exit_before_earnings=True, min_bars_to_earnings=25), True),
+        "all_patterns": (replace(base, patterns=all_pats), True, None),
+        "hammers": (base, True, None),
     }
+    if market is not None:
+        variants["hammers+market"] = (base, True, market)
+    main_name = list(variants)[-1]
     rows, all_trades = [], []
-    for name, (p, use_e) in variants.items():
-        t = run_variant(prices, earns, p, use_e)
+    for name, (p, use_e, mkt) in variants.items():
+        t = run_variant(prices, earns, p, use_e, mkt)
         t["variant"] = name
         all_trades.append(t)
         for period, sub in (("all", t), ("2012-19", t[t["entry_date"] < SPLIT]),
@@ -140,13 +148,13 @@ def main(argv=None):
     print(shown.to_string())
 
     trades = pd.concat(all_trades, ignore_index=True)
-    main_t = trades[trades["variant"] == "candles+earnings"]
+    main_t = trades[trades["variant"] == main_name]
     if len(main_t):
-        print("\ncandles+earnings by pattern:")
+        print(f"\n{main_name} by pattern:")
         print(swing.pattern_report(main_t).to_string(float_format=lambda x: f"{x:.3f}"))
-        print("\ncandles+earnings by exit reason:")
+        print(f"\n{main_name} by exit reason:")
         print(main_t.groupby("reason")["return"].agg(["count", "mean"]).to_string())
-        print("\ncandles+earnings by entry year:")
+        print(f"\n{main_name} by entry year:")
         y = main_t.groupby(main_t["entry_date"].dt.year)["return"]
         print(pd.DataFrame({"trades": y.size(), "win_rate": y.apply(lambda r: (r > 0).mean()),
                             "avg_ret": y.mean()}).to_string(float_format=lambda x: f"{x:.3f}"))
