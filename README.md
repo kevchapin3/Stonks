@@ -13,6 +13,7 @@ Nothing in this code shorts. Bearish patterns only close a stock you own.
 | `stonks/earnings.py` | Earnings history (Yahoo or CSV), point-in-time EPS surprise, year-over-year growth and days to the next report |
 | `stonks/momentum.py` | Earnings-growth momentum: consecutive quarter-over-quarter EPS gains plus RSI crossing 60 |
 | `stonks/bands.py` | Entries 2 standard deviations below (pullback) or above (breakout) the 50-day average, in a 200-day uptrend |
+| `stonks/paper.py` | Weekly paper-trading tracker for 2-SD and 3-SD large-cap pullbacks; writes `paper/ledger.csv` and `paper/report.md` |
 | `stonks/timing.py` | 200-day moving-average timing for an index fund (MDY, SPY) vs buy-and-hold, with T-bill yield on cash |
 | `stonks/scan.py` | Mid-cap scanner: market cap, price and liquidity screen, today's signals, multi-ticker backtest |
 | `stonks/indicators.py` | SMA/EMA/WMA, RSI, MACD, Stochastic, ROC, Williams %R, CCI, ATR, Bollinger, Keltner, Donchian, ADX, OBV, VWAP, MFI |
