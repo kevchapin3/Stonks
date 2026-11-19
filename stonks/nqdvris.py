@@ -236,6 +236,10 @@ def screen(f: pd.DataFrame, p: Params) -> pd.DataFrame:
     """Apply eligibility tests; returns `f` with a pass/fail column per test and `eligible`."""
     f = f.copy()
     f["is_reit"] = (f["sector"] == "Real Estate") | f["industry"].fillna("").str.startswith("REIT")
+    # one security per company: drop share classes other than the most traded one
+    names = f["name"].fillna(pd.Series(f.index, index=f.index))
+    best = f.assign(_n=names).sort_values("adv", ascending=False).drop_duplicates("_n").index
+    f["t_one_class"] = f.index.isin(best)
     pool = f[~f["is_reit"]].sort_values("float_mcap", ascending=False)
     top = set(pool.index[: p.top_n])
     f["size_rank"] = pool["float_mcap"].rank(ascending=False)
@@ -261,7 +265,8 @@ def screen(f: pd.DataFrame, p: Params) -> pd.DataFrame:
     else:
         f["t_us"] = True
     f["t_achiever"] = (f["achiever_years"] >= p.min_achiever_years) if p.achievers_only else True
-    tests = ["t_size", "t_liquid", "t_div_growth", "t_eps", "t_cash_debt", "t_payout", "t_cap", "t_achiever", "t_us"]
+    tests = ["t_size", "t_liquid", "t_div_growth", "t_eps", "t_cash_debt", "t_payout", "t_cap", "t_achiever",
+             "t_us", "t_one_class"]
     f["eligible"] = (~f["is_reit"]) & f[tests].all(axis=1)
     return f
 
@@ -288,14 +293,16 @@ def select(f: pd.DataFrame, p: Params) -> pd.DataFrame:
         drop = [t for t in reversed(picked) if not e.at[t, "large_cap"]][0]
         picked.remove(drop)
         picked.append(spare_large.pop(0))
-    # Industry cap: an over-limit industry loses its highest-ranked member to the next-ranked outsider
+    # Industry cap: an over-limit industry loses its lowest-priority member (largest rank number)
+    # to the next-ranked eligible security from another industry. Nasdaq's text says "highest-ranked";
+    # validation against actual sub-portfolios shows this means the bottom of the order.
     for _ in range(200):
         counts = e.loc[picked, "icb"].value_counts()
         over = counts[counts > p.max_per_industry]
         if over.empty:
             break
         ind = over.index[0]
-        top_member = min((t for t in picked if e.at[t, "icb"] == ind), key=lambda t: e.at[t, "rank"])
+        top_member = max((t for t in picked if e.at[t, "icb"] == ind), key=lambda t: e.at[t, "rank"])
         repl = next((t for t in e.index if t not in picked and e.at[t, "icb"] != ind
                      and e.at[t, "icb"] not in counts[counts >= p.max_per_industry].index), None)
         if repl is None:

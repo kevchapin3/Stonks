@@ -76,6 +76,9 @@ def test_selection_ranks_and_industry_cap():
     sel = e[e.selected]
     assert len(sel) == 10
     assert (sel.icb.value_counts() <= 5).all()
+    # the over-limit industry keeps its best-ranked members
+    fin = e[(e.icb == "Financials")].sort_values("rank")
+    assert fin.head(5).selected.all()
     # bigger dividend growth -> better rank
     assert e.loc["S19", "r_inc"] < e.loc["S00", "r_inc"]
 
