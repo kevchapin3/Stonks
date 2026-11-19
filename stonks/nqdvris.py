@@ -23,7 +23,7 @@ import pandas as pd
 
 # Domiciles common for US-listed, US-style companies included in US benchmark indexes
 US_STYLE_DOMICILES = {"Ireland", "Switzerland", "Bermuda", "United Kingdom", "Jersey", "Netherlands",
-                      "Puerto Rico", "Panama", "Cayman Islands", "Curacao", "Luxembourg"}
+                      "Puerto Rico", "Panama", "Cayman Islands", "Curacao"}
 
 # Yahoo sector -> ICB Industry (2019 structure used by First Trust's holdings page)
 SECTOR_TO_ICB = {
