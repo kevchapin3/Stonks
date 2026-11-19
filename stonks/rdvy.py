@@ -158,10 +158,8 @@ def validate(fund, prices, earnings, mem, params, overrides=None, asof=None) -> 
     asof = asof or prices.index[-1]
     rows = []
     for s, ref in last_ref_dates(asof).items():
-        month = {v: k for k, v in SUB_BY_MONTH.items()}[s]
-        reb = Rebalance(ref.year if month != 12 or ref.month == 11 else ref.year, month)
-        if reb.price_ref != ref:
-            reb = Rebalance(ref.year, month)
+        reb = Rebalance(ref.year, ref.month + 1)   # rebuild month follows its price reference month
+        assert reb.sub == s
         e, _ = run_screen(reb, fund, prices, earnings, params, overrides)
         picked = set(e.index[e.selected])
         actual = set(mem.index[mem[s] == 1])
