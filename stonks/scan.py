@@ -63,9 +63,10 @@ def _earnings_info(df: pd.DataFrame, earn: pd.DataFrame | None) -> dict:
     }
 
 
-def current_signal(df: pd.DataFrame, p: swing.SwingParams, earn: pd.DataFrame | None = None) -> dict | None:
+def current_signal(df: pd.DataFrame, p: swing.SwingParams, earn: pd.DataFrame | None = None,
+                   market: pd.DataFrame | None = None) -> dict | None:
     """Status of the system on the latest bar: new entry, open trade, or pending setup."""
-    res = swing.run(df, p, earnings=earn)
+    res = swing.run(df, p, earnings=earn, market=market)
     last = df.index[-1]
     atr = ind.atr(df["high"], df["low"], df["close"], p.atr_period).iloc[-1]
     if not res.trades.empty:
@@ -83,10 +84,16 @@ def current_signal(df: pd.DataFrame, p: swing.SwingParams, earn: pd.DataFrame | 
     if len(hits):
         d = hits.index[-1]
         trigger = df.loc[d, "high"]
+        if p.stop_pct is not None:
+            stop = trigger * (1 - p.stop_pct)
+        else:
+            stop = max(df.loc[d, "low"] - p.stop_atr * atr, trigger - p.max_risk_atr * atr)
+        blocked = market is not None and not swing.market_ok(market, df.index[-1:], p.market_ma)[0]
         return {
-            "status": "AWAITING CONFIRMATION", "pattern": hits["pattern"].iloc[-1],
+            "status": "SETUP (MARKET FILTER BLOCKS BUY)" if blocked else "AWAITING CONFIRMATION",
+            "pattern": hits["pattern"].iloc[-1],
             "pattern_date": d.date(), "entry": round(trigger, 2),
-            "stop": round(max(df.loc[d, "low"] - p.stop_atr * atr, trigger - p.max_risk_atr * atr), 2),
+            "stop": round(stop, 2),
             "bars_held": 0, "close": round(df["close"].iloc[-1], 2),
             **_earnings_info(df, earn),
         }
@@ -130,6 +137,8 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--start", default="2012-01-01")
     ap.add_argument("--end")
     ap.add_argument("--backtest", action="store_true", help="Also backtest the system over the whole universe")
+    ap.add_argument("--market", help="Market index CSV; default downloads ^MID (S&P 400)")
+    ap.add_argument("--no-market", action="store_true", help="Turn off the market filter")
     ap.add_argument("--earnings-dir", help="Earnings CSVs (one per ticker) to go with --csv-dir")
     ap.add_argument("--no-earnings", action="store_true", help="Turn off the earnings rule")
     ap.add_argument("--no-cap-check", action="store_true", help="Skip the market-cap check (e.g. offline)")
@@ -141,6 +150,11 @@ def main(argv: list[str] | None = None) -> None:
     u = Universe(min_dollar_volume=args.min_dollar_volume)
     p = swing.SwingParams(min_hold=args.min_hold, max_hold=args.max_hold)
     universe, earn_data = load_universe(args)
+    market = None
+    if not args.no_market:
+        market = data.load_csv(args.market) if args.market else data.load_yahoo("^MID", "2010-01-01")
+        if not swing.market_ok(market, market.index[-1:], p.market_ma)[0]:
+            print("Market filter: S&P 400 is BELOW its 200-day average, so no new buys.")
     check_cap = not (args.no_cap_check or args.csv_dir)
 
     signals, all_trades, skipped = [], [], []
@@ -163,11 +177,11 @@ def main(argv: list[str] | None = None) -> None:
             if earn is None or earn["eps_actual"].notna().sum() < 5:
                 skipped.append((t, "no earnings history (needed for the earnings rule)"))
                 continue
-        sig = current_signal(df, p, earn)
+        sig = current_signal(df, p, earn, market)
         if sig:
             signals.append({"ticker": t, **sig})
         if args.backtest:
-            all_trades.append(swing.run(df, p, ticker=t, earnings=earn).trades)
+            all_trades.append(swing.run(df, p, ticker=t, earnings=earn, market=market).trades)
 
     pd.set_option("display.width", 160)
     print(f"\nScanned {len(universe)} tickers, {len(skipped)} filtered out.")
