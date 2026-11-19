@@ -1,0 +1,73 @@
+name,ticker,cusip,sector,shares,mv,weight
+"Automatic Data Processing, Inc.",ADP,053015103,Industrials,"2,028,271",619778769.47,2.48
+Veralto Corporation,VLTO,92338C103,Industrials,"5,218,382",615090686.34,2.46
+"The Travelers Companies, Inc.",TRV,89417E109,Financials,"1,565,215",612906889.7,2.45
+Visa Inc. (Class A),V,92826C839,Industrials,"1,444,638",599842590.36,2.4
+The Allstate Corporation,ALL,020002101,Financials,"2,210,684",589346247.56,2.35
+Chubb Limited,CB,H1467J104,Financials,"1,526,431",566336429.62,2.26
+Cincinnati Financial Corporation,CINF,172062101,Financials,"2,980,642",562834628.86,2.25
+Costco Wholesale Corporation,COST,22160K105,Consumer Discretionary,"513,580",563202099.6,2.25
+The Bank of New York Mellon Corporation,BNY,064058100,Financials,"3,728,512",551074073.6,2.2
+Accenture plc,ACN,G1151C101,Industrials,"2,395,441",544938873.09,2.18
+Microsoft Corporation,MSFT,594918104,Technology,"1,072,887",545337733.23,2.18
+"Ross Stores, Inc.",ROST,778296103,Consumer Discretionary,"2,341,003",532905922.92,2.13
+U.S. Bancorp,USB,902973304,Financials,"8,927,463",520292543.64,2.08
+JPMorgan Chase & Co.,JPM,46625H100,Financials,"1,550,147",502418144.17,2.01
+"Regeneron Pharmaceuticals, Inc.",REGN,75886F107,Health Care,"524,320",495760289.6,1.98
+Regions Financial Corporation,RF,7591EP100,Financials,"17,646,446",493218165.7,1.97
+"The Hartford Insurance Group, Inc.",HIG,416515104,Financials,"3,626,622",493111793.34,1.97
+"Meta Platforms, Inc. (Class A)",META,30303M102,Technology,"788,839",486224582.82,1.94
+"Expedia Group, Inc.",EXPE,30212P303,Consumer Discretionary,"1,968,850",483923641.5,1.93
+Snap-on Incorporated,SNA,833034101,Industrials,"1,323,591",479100234.27,1.91
+"Williams-Sonoma, Inc.",WSM,969904101,Consumer Discretionary,"1,823,621",474305585.89,1.89
+American Express Company,AXP,025816109,Industrials,"1,493,867",471165651.8,1.88
+"Applied Materials, Inc.",AMAT,038222105,Technology,"1,334,794",470247926.2,1.88
+Synchrony Financial,SYF,87165B103,Industrials,"6,664,018",467547502.88,1.87
+GE Vernova Inc.,GEV,36828A101,Industrials,"601,708",464650951.76,1.86
+"PayPal Holdings, Inc.",PYPL,70450Y103,Industrials,"7,916,292",458274143.88,1.83
+KLA Corporation,KLAC,482480100,Technology,"3,148,262",456120198.56,1.82
+Apple Inc.,AAPL,037833100,Technology,"1,272,377",448449273.65,1.79
+Bank of America Corporation,BAC,060505104,Financials,"9,072,619",443741795.29,1.77
+Lam Research Corporation,LRCX,512807306,Technology,"2,064,654",437025312.18,1.75
+Aflac Incorporated,AFL,001055102,Financials,"3,321,795",416121259.65,1.66
+Alphabet Inc. (Class A),GOOGL,02079K305,Technology,"1,454,852",410908398.88,1.64
+ResMed Inc.,RMD,761152107,Health Care,"1,666,100",404212521.0,1.61
+"Micron Technology, Inc.",MU,595112103,Technology,"553,908",390654695.16,1.56
+Baker Hughes Company (Class A),BKR,05722G100,Energy,"8,130,221",384559453.3,1.54
+NVIDIA Corporation,NVDA,67066G104,Technology,"2,504,319",378051996.24,1.51
+Wells Fargo & Company,WFC,949746101,Financials,"4,625,790",374318926.8,1.5
+"Ameriprise Financial, Inc.",AMP,03076C106,Financials,"735,540",368814466.8,1.47
+GE Aerospace,GE,369604301,Industrials,"1,114,794",365763911.4,1.46
+The Charles Schwab Corporation,SCHW,808513105,Financials,"3,904,926",361439950.56,1.44
+Cognizant Technology Solutions Corporation,CTSH,192446102,Technology,"6,170,162",357560887.9,1.43
+"Salesforce, Inc.",CRM,79466L302,Technology,"1,759,361",334982334.4,1.34
+"Mueller Industries, Inc.",MLI,624756102,Basic Materials,"6,025,194",323372161.98,1.29
+"Everest Group, Ltd.",EG,G3223R108,Financials,"750,307",315158952.28,1.26
+Southwest Airlines Co.,LUV,844741108,Consumer Discretionary,"6,432,537",302779516.59,1.21
+Booking Holdings Inc.,BKNG,09857L108,Consumer Discretionary,"1,928,520",295603545.6,1.18
+Mastercard Incorporated,MA,57636Q104,Industrials,"430,334",276863985.58,1.11
+Ralph Lauren Corporation,RL,751212101,Consumer Discretionary,"659,000",253168030.0,1.01
+"The PNC Financial Services Group, Inc.",PNC,693475105,Financials,"1,140,506",252211496.84,1.01
+"PulteGroup, Inc.",PHM,745867101,Consumer Discretionary,"1,736,727",217108242.27,0.87
+"Monolithic Power Systems, Inc.",MPWR,609839105,Technology,"121,322",159042223.02,0.64
+State Street Corporation,STT,857477103,Financials,"945,782",156195897.3,0.62
+Western Digital Corporation,WDC,958102105,Technology,"536,213",154531224.47,0.62
+"Coca-Cola Consolidated, Inc.",COKE,191098102,Consumer Staples,"690,864",145164343.68,0.58
+Elevance Health Inc.,ELV,036752103,Health Care,"365,113",146351894.92,0.58
+eBay Inc.,EBAY,278642103,Consumer Discretionary,"1,173,922",142584566.12,0.57
+"East West Bancorp, Inc.",EWBC,27579R104,Financials,"1,055,008",133047058.88,0.53
+Garmin Ltd.,GRMN,H2906T109,Consumer Discretionary,"467,311",130622770.72,0.52
+QUALCOMM Incorporated,QCOM,747525103,Technology,"778,789",124458270.09,0.5
+Amphenol Corporation,APH,032095101,Technology,"1,600,095",122135251.35,0.49
+Dover Corporation,DOV,260003108,Industrials,"607,584",123151200.96,0.49
+Citigroup Inc.,C,172967424,Financials,"1,018,846",119551389.64,0.48
+"Allison Transmission Holdings, Inc.",ALSN,01973R101,Industrials,"932,607",116491940.37,0.47
+"Cisco Systems, Inc.",CSCO,17275R102,Telecommunications,"1,201,604",116771876.72,0.47
+"CF Industries Holdings, Inc.",CF,125269100,Basic Materials,"1,021,020",116089974.0,0.46
+Intuit Inc.,INTU,461202103,Technology,"369,528",115750950.72,0.46
+The Progressive Corporation,PGR,743315103,Financials,"492,018",112411352.46,0.45
+Howmet Aerospace Inc.,HWM,443201108,Industrials,"496,772",109861127.8,0.44
+PACCAR Inc,PCAR,693718108,Industrials,"1,067,821",110850498.01,0.44
+Vertiv Holdings Co (Class A),VRT,92537N108,Industrials,"513,161",99799551.28,0.4
+"Comfort Systems USA, Inc.",FIX,199908104,Industrials,"85,862",97933338.58,0.39
+Abbott Laboratories,ABT,002824100,Health Care,"873,319",91244369.12,0.36
