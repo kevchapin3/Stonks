@@ -106,12 +106,19 @@ def main(argv=None):
     ap.add_argument("--earnings-dir", required=True)
     ap.add_argument("--out", help="Write all trades to this CSV")
     ap.add_argument("--market", help="Market index CSV (e.g. S&P 400) for the 200-day filter")
+    ap.add_argument("--min-hold", type=int, help="Bars before a bearish pattern can close a trade")
+    ap.add_argument("--max-hold", type=int, help="Time stop in bars")
+    ap.add_argument("--only-main", action="store_true", help="Run only the default variant")
     args = ap.parse_args(argv)
 
     prices, earns = load(args.csv_dir, args.earnings_dir)
     print(f"{len(prices)} stocks with prices, {len(earns)} with usable earnings history\n")
 
     base = swing.SwingParams()
+    if args.min_hold:
+        base = replace(base, min_hold=args.min_hold)
+    if args.max_hold:
+        base = replace(base, max_hold=args.max_hold)
     market = data.load_csv(args.market) if args.market else None
     all_pats = tuple(k for k in ("hammer", "bullish_engulfing", "piercing_line", "morning_star",
                                  "bullish_harami", "tweezer_bottom", "inverted_hammer", "dragonfly_doji"))
@@ -122,6 +129,8 @@ def main(argv=None):
     if market is not None:
         variants["hammers+market"] = (base, True, market)
     main_name = list(variants)[-1]
+    if args.only_main:
+        variants = {main_name: variants[main_name]}
     rows, all_trades = [], []
     for name, (p, use_e, mkt) in variants.items():
         t = run_variant(prices, earns, p, use_e, mkt)
