@@ -21,6 +21,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+# Domiciles common for US-listed, US-style companies included in US benchmark indexes
+US_STYLE_DOMICILES = {"Ireland", "Switzerland", "Bermuda", "United Kingdom", "Jersey", "Netherlands",
+                      "Puerto Rico", "Panama", "Cayman Islands", "Curacao", "Luxembourg"}
+
 # Yahoo sector -> ICB Industry (2019 structure used by First Trust's holdings page)
 SECTOR_TO_ICB = {
     "Financial Services": "Financials", "Industrials": "Industrials", "Technology": "Technology",
@@ -52,6 +56,8 @@ class Params:
     min_achiever_years: int = 10
     min_adv: float = 5e6             # 3-month average daily value traded
     max_payout: float = 0.65
+    increase_mode: str = "dollar"    # "dollar" or "pct": how the 5-year dividend increase is ranked
+    countries: dict = field(default_factory=dict)  # ticker -> {"country", "financialCurrency"}
     min_cash_debt: float = 0.50
     select_n: int = 50
     min_large: int = 33
@@ -76,7 +82,7 @@ def load_earnings(*dirs: str | Path) -> dict[str, pd.DataFrame]:
 
 def _s(d: dict) -> pd.Series:
     if not d:
-        return pd.Series(dtype=float)
+        return pd.Series(dtype=float, index=pd.DatetimeIndex([]))
     s = pd.Series(d, dtype=float)
     s.index = pd.to_datetime(s.index)
     return s.sort_index().dropna()
@@ -241,8 +247,21 @@ def screen(f: pd.DataFrame, p: Params) -> pd.DataFrame:
     f["t_cash_debt"] = f["cash_debt"] > p.min_cash_debt
     f["t_payout"] = f["payout"] <= p.max_payout
     f["t_cap"] = ~f.index.isin(p.exclude)
+    if p.countries:
+        def us_company(t):
+            c = p.countries.get(t) or {}
+            if not c:
+                return True
+            if c.get("country") == "United States":
+                return True
+            # US-style companies domiciled abroad (e.g. Chubb, Accenture) report in USD;
+            # ADRs of foreign companies generally report in their home currency
+            return c.get("financialCurrency") == "USD" and c.get("country") in US_STYLE_DOMICILES
+        f["t_us"] = [us_company(t) for t in f.index]
+    else:
+        f["t_us"] = True
     f["t_achiever"] = (f["achiever_years"] >= p.min_achiever_years) if p.achievers_only else True
-    tests = ["t_size", "t_liquid", "t_div_growth", "t_eps", "t_cash_debt", "t_payout", "t_cap", "t_achiever"]
+    tests = ["t_size", "t_liquid", "t_div_growth", "t_eps", "t_cash_debt", "t_payout", "t_cap", "t_achiever", "t_us"]
     f["eligible"] = (~f["is_reit"]) & f[tests].all(axis=1)
     return f
 
@@ -250,7 +269,11 @@ def screen(f: pd.DataFrame, p: Params) -> pd.DataFrame:
 def select(f: pd.DataFrame, p: Params) -> pd.DataFrame:
     """Rank eligible names and pick up to `select_n` with the large-cap and industry rules."""
     e = f[f["eligible"]].copy()
-    e["r_inc"] = e["div_increase_5y"].rank(ascending=False, method="min")
+    if p.increase_mode == "pct":
+        inc = (e["div_ttm"] / e["div_5y"].replace(0, np.nan) - 1).fillna(np.inf)  # new payers rank first
+    else:
+        inc = e["div_increase_5y"]
+    e["r_inc"] = inc.rank(ascending=False, method="min")
     e["r_yield"] = e["yield_"].rank(ascending=False, method="min")
     e["r_payout"] = e["payout"].rank(ascending=True, method="min")
     e["score"] = e["r_inc"] + e["r_yield"] + e["r_payout"]

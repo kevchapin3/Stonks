@@ -117,3 +117,11 @@ def test_recurring_annual_dividend_is_regular():
         divs[pd.Timestamp(f"{y}-01-10")] = 1.0 + 0.2 * (y - 2019)   # annual variable dividend
     divs = divs.sort_index()
     assert len(nq.regular_dividends(divs)) == len(divs)
+
+
+def test_missing_annual_eps_does_not_crash():
+    r = rec("NOEPS", GROW, EPS_UP, 60, 100)
+    r["inc_annual"] = {}
+    fund, prices = build([r])
+    f = nq.features(fund, prices, "2026-09-30", "2026-11-30", nq.Params())
+    assert np.isnan(f.loc["NOEPS", "eps"])
