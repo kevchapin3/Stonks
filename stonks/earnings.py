@@ -61,7 +61,9 @@ def load_yahoo(ticker: str, limit: int = 100) -> pd.DataFrame:
                 "date": ts.tz_localize(None),
                 "eps_actual": raw["Reported EPS"].to_numpy(),
                 "eps_estimate": raw["EPS Estimate"].to_numpy(),
-                "timing": np.where(ts.hour < 12, "bmo", "amc"),
+                # Pre-market times are "bmo"; after-close or unknown (midnight) times
+                # are treated as "amc", which never reacts a day early.
+                "timing": np.where((ts.hour >= 4) & (ts.hour < 12), "bmo", "amc"),
             }
         )
     )
