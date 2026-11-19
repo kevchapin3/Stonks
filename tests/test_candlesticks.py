@@ -171,3 +171,16 @@ def test_rsi_filter_only_admits_low_rsi_setups():
     assert (r[st["setup"]] <= 40).all()
     loose = swing.setups(df, swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0))
     assert st["setup"].sum() < loose["setup"].sum()
+
+
+def test_entry_rsi_rising_above_60():
+    from stonks import indicators as ind
+    df = data.synthetic(2500, seed=7)
+    p = swing.SwingParams(patterns=ALL_PATTERNS, trend_filter=False, vol_mult=0.0,
+                          entry_rsi_min=60, entry_rsi_rising=True)
+    t = swing.run(df, p).trades
+    r = ind.rsi(df["close"])
+    assert len(t) > 0
+    assert (r.loc[t["entry_date"]] > 60).all()
+    prev = r.shift(1).loc[t["entry_date"]].to_numpy()
+    assert (r.loc[t["entry_date"]].to_numpy() > prev).all()

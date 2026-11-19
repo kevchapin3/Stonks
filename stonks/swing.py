@@ -61,6 +61,9 @@ class SwingParams:
     market_ma: int = 200            # with a market index: buy only above this SMA
     rsi_period: int = 14
     rsi_max: float | None = None    # e.g. 40: pattern-day RSI must be at or below this
+    rsi_min: float | None = None    # e.g. 60: pattern-day RSI must be above this
+    entry_rsi_min: float | None = None  # e.g. 60: entry-day RSI must be above this
+    entry_rsi_rising: bool = False  # entry-day RSI must be above the prior day's
     min_hold: int = 30          # ~6 weeks
     max_hold: int = 40          # ~8 weeks
     exit_on_bearish: bool = True
@@ -128,6 +131,8 @@ def setups(
     vol_ok = v >= p.vol_mult * v.rolling(20).mean().shift(1)
     if p.rsi_max is not None:
         vol_ok = vol_ok & (ind.rsi(c, p.rsi_period) <= p.rsi_max)
+    if p.rsi_min is not None:
+        vol_ok = vol_ok & (ind.rsi(c, p.rsi_period) > p.rsi_min)
 
     out = pd.DataFrame(
         {
@@ -167,6 +172,14 @@ def run(
         to_next = np.full(len(df), np.nan)
     if market is not None:
         entry_ok = entry_ok & market_ok(market, df.index, p.market_ma)
+    if p.entry_rsi_min is not None or p.entry_rsi_rising:
+        r = ind.rsi(df["close"], p.rsi_period)
+        ok = pd.Series(True, index=df.index)
+        if p.entry_rsi_min is not None:
+            ok &= r > p.entry_rsi_min
+        if p.entry_rsi_rising:
+            ok &= r > r.shift(1)
+        entry_ok = entry_ok & ok.fillna(False).to_numpy()
     o, h, l, c = (df[k].to_numpy(float) for k in ("open", "high", "low", "close"))
     atr = ind.atr(df["high"], df["low"], df["close"], p.atr_period).to_numpy()
     st = setups(df, p, earnings)
